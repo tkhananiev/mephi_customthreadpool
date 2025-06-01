@@ -1,7 +1,9 @@
 package customthreadpool;
 
-import java.util.concurrent.*;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 public class Worker implements Runnable {
     private final BlockingQueue<Runnable> taskQueue;
@@ -10,8 +12,7 @@ public class Worker implements Runnable {
     private final int corePoolSize;
     private final AtomicInteger currentPoolSize;
     private final Runnable onTerminate;
-    private final boolean shutdownSignal;
-    private Thread thread;
+    private final Supplier<Boolean> isShutdown;
 
     public Worker(BlockingQueue<Runnable> taskQueue,
                   long keepAliveTime,
@@ -19,44 +20,42 @@ public class Worker implements Runnable {
                   int corePoolSize,
                   AtomicInteger currentPoolSize,
                   Runnable onTerminate,
-                  boolean shutdownSignal) {
+                  Supplier<Boolean> isShutdown) {
         this.taskQueue = taskQueue;
         this.keepAliveTime = keepAliveTime;
         this.timeUnit = timeUnit;
         this.corePoolSize = corePoolSize;
         this.currentPoolSize = currentPoolSize;
         this.onTerminate = onTerminate;
-        this.shutdownSignal = shutdownSignal;
-    }
-
-    public void setThread(Thread thread) {
-        this.thread = thread;
+        this.isShutdown = isShutdown;
     }
 
     @Override
     public void run() {
         try {
-            while (!shutdownSignal || !taskQueue.isEmpty()) {
+            while (true) {
+                if (isShutdown.get() && taskQueue.isEmpty()) break;
+
                 Runnable task = taskQueue.poll(keepAliveTime, timeUnit);
                 if (task != null) {
-                    System.out.println("[Worker] " + Thread.currentThread().getName() + " executes task");
-                    task.run();
+                    try {
+                        task.run();
+                    } catch (Exception e) {
+                        System.out.println("[Worker] Ошибка выполнения задачи: " + e.getMessage());
+                    }
                 } else {
                     if (currentPoolSize.get() > corePoolSize) {
-                        System.out.println("[Worker] " + Thread.currentThread().getName() + " idle timeout, stopping.");
+                        System.out.println("[Worker] " + Thread.currentThread().getName() + " завершает работу из-за простоя.");
                         break;
                     }
                 }
             }
-        } catch (InterruptedException ignored) {
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         } finally {
             currentPoolSize.decrementAndGet();
-            System.out.println("[Worker] " + Thread.currentThread().getName() + " terminated.");
             onTerminate.run();
+            System.out.println("[Worker] " + Thread.currentThread().getName() + " завершён.");
         }
-    }
-
-    public Thread getThread() {
-        return thread;
     }
 }

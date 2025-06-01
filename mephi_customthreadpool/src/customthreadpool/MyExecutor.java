@@ -1,6 +1,6 @@
 package customthreadpool;
 
-import java.util.*;
+import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -10,7 +10,6 @@ public class MyExecutor implements CustomExecutor {
     private final long keepAliveTime;
     private final TimeUnit timeUnit;
     private final int queueSize;
-    private final int minSpareThreads;
 
     private final BlockingQueue<Runnable> taskQueue;
     private final Set<Thread> workerThreads = ConcurrentHashMap.newKeySet();
@@ -19,19 +18,16 @@ public class MyExecutor implements CustomExecutor {
     private final AtomicInteger currentPoolSize = new AtomicInteger(0);
     private volatile boolean isShutdown = false;
 
-    public MyExecutor(int corePoolSize, int maxPoolSize, long keepAliveTime, TimeUnit timeUnit,
-                      int queueSize, int minSpareThreads) {
+    public MyExecutor(int corePoolSize, int maxPoolSize, long keepAliveTime, TimeUnit timeUnit, int queueSize) {
         this.corePoolSize = corePoolSize;
         this.maxPoolSize = maxPoolSize;
         this.keepAliveTime = keepAliveTime;
         this.timeUnit = timeUnit;
         this.queueSize = queueSize;
-        this.minSpareThreads = minSpareThreads;
+
         this.taskQueue = new LinkedBlockingQueue<>(queueSize);
         this.threadFactory = new MyThreadFactory("MyPool-worker");
-        this.rejectionHandler = (r, e) -> {
-            System.out.println("[Rejected] Task was rejected due to overload: " + r);
-        };
+        this.rejectionHandler = (r, e) -> System.out.println("[Rejected] Задача отклонена: " + r);
 
         for (int i = 0; i < corePoolSize; i++) {
             addWorker();
@@ -50,7 +46,7 @@ public class MyExecutor implements CustomExecutor {
                 rejectionHandler.rejectedExecution(command, null);
             }
         } else {
-            System.out.println("[Pool] Task accepted: " + command);
+            System.out.println("[Executor] Принята задача: " + command);
         }
     }
 
@@ -69,11 +65,12 @@ public class MyExecutor implements CustomExecutor {
     @Override
     public void shutdownNow() {
         isShutdown = true;
-        for (Thread thread : workerThreads) {
-            thread.interrupt();
+        for (Thread t : workerThreads) {
+            t.interrupt();
         }
     }
 
+    @Override
     public void awaitTermination() {
         while (!taskQueue.isEmpty() || currentPoolSize.get() > 0) {
             try {
@@ -95,12 +92,12 @@ public class MyExecutor implements CustomExecutor {
                 corePoolSize,
                 currentPoolSize,
                 () -> workerThreads.remove(Thread.currentThread()),
-                isShutdown
+                () -> isShutdown
         );
 
         Thread thread = threadFactory.newThread(worker);
-        worker.setThread(thread);
         workerThreads.add(thread);
         thread.start();
     }
 }
+

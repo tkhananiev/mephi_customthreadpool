@@ -13,8 +13,9 @@ public class MyThreadFactory implements ThreadFactory {
 
     @Override
     public Thread newThread(Runnable r) {
-        String name = baseName + "-" + counter.getAndIncrement();
-        System.out.println("[ThreadFactory] Creating new thread: " + name);
-        return new Thread(r, name);
+        Thread thread = new Thread(r, baseName + "-" + counter.getAndIncrement());
+        System.out.println("[ThreadFactory] Создан поток: " + thread.getName());
+        return thread;
     }
 }
+
