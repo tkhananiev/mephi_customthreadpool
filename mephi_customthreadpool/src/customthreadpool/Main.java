@@ -31,7 +31,7 @@ public class Main {
         executor.awaitTermination();
         executor.shutdownNow();
 
-        System.out.println("=== Все задачи завершены. Программа завершена. ===");
+        System.out.println("Все задачи завершены. Программа завершена.");
     }
 }
 
